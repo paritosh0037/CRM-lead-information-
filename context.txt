@@ -1,0 +1,1113 @@
+# CRM AI — Complete Project Context
+
+## 1. Project Identity
+
+Project name:
+AI-Powered CRM Lead Prioritization & Next-Best-Action System
+
+Project type:
+Explainable machine-learning sales intelligence platform.
+
+Primary goal:
+Analyze CRM lead information, customer interactions, engagement history, and opportunity attributes to:
+- calculate lead-quality / conversion scores
+- rank leads for sales follow-up
+- recommend the next best sales action
+- explain why a lead received its score and recommendation
+- provide pipeline analytics
+- allow sales users to override AI recommendations
+- capture human feedback for later model evaluation/improvement
+
+This is intended to become:
+1. A hackathon project
+2. A serious ML portfolio project
+3. A resume project
+4. A project that can be defended technically in interviews
+
+Important:
+Do not build a fake "AI dashboard" where an LLM simply invents scores.
+The core intelligence must be measurable, reproducible, explainable, and evaluated.
+
+---
+
+## 2. Core Problem
+
+Sales teams cannot manually evaluate every lead with equal depth.
+
+The system should help sales representatives focus on stronger opportunities while showing evidence for every recommendation.
+
+The core questions are:
+
+1. How promising is this lead?
+2. Why did the system give it this score?
+3. What should the salesperson do next?
+4. Does the salesperson agree with the recommendation?
+5. What happened after the recommendation?
+
+---
+
+## 3. Core System Flow
+
+Main prediction flow:
+
+CRM Data
+    ↓
+Data Validation / Cleaning
+    ↓
+Feature Engineering
+    ↓
+Baseline Model
+    ↓
+ML Model
+    ↓
+Conversion Probability
+    ↓
+Lead Score (0–100)
+    ↓
+Explainability (SHAP)
+    ↓
+Next-Best-Action Engine
+    ↓
+Recommendation + Confidence + Rationale
+    ↓
+FastAPI
+    ↓
+Next.js Dashboard
+    ↓
+Sales User
+    ↓
+Accept / Override
+    ↓
+Feedback
+    ↓
+PostgreSQL
+    ↓
+Future Model Evaluation / Improvement
+
+Important architectural distinction:
+
+Next.js = frontend/UI
+FastAPI = backend API / communication layer
+ML Engine = prediction and ML logic
+Recommendation Engine = business decision logic
+PostgreSQL = persistent database
+Feedback system = human-in-the-loop data
+
+---
+
+## 4. High-Level System Architecture
+
+                         USER / SALES REP
+                                │
+                                ▼
+                     ┌────────────────────┐
+                     │      Next.js       │
+                     │     FRONTEND       │
+                     │                    │
+                     │ Dashboard          │
+                     │ Lead Ranking       │
+                     │ Lead Details       │
+                     │ Analytics          │
+                     │ Recommendations    │
+                     │ Override           │
+                     └─────────┬──────────┘
+                               │
+                           HTTP / JSON
+                               │
+                               ▼
+                     ┌────────────────────┐
+                     │      FastAPI       │
+                     │      API Layer     │
+                     │                    │
+                     │ /leads             │
+                     │ /scores            │
+                     │ /recommendations   │
+                     │ /analytics         │
+                     │ /feedback          │
+                     └─────────┬──────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              │                │                │
+              ▼                ▼                ▼
+       ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+       │  ML ENGINE   │ │ PostgreSQL   │ │  Analytics   │
+       │              │ │   DATABASE   │ │   Services   │
+       │ Feature Eng. │ │              │ │              │
+       │ Prediction   │ │ Leads        │ │ Pipeline     │
+       │ Scoring      │ │ Interactions │ │ Metrics      │
+       │ SHAP         │ │ Scores       │ │ Aggregation  │
+       └──────┬───────┘ │ Recommends   │ └──────────────┘
+              │          │ Overrides    │
+              │          │ Feedback     │
+              │          └──────────────┘
+              ▼
+       ┌────────────────────┐
+       │ Recommendation     │
+       │ Result             │
+       │                    │
+       │ Score: 87          │
+       │ Action: DEMO       │
+       │ Why: ...           │
+       │ Confidence: ...    │
+       └─────────┬──────────┘
+                 │
+                 ▼
+              FastAPI
+                 │
+                 ▼
+              Next.js
+                 │
+                 ▼
+             Sales User
+                 │
+          ┌──────┴──────┐
+          ▼             ▼
+       ACCEPT        OVERRIDE
+          │             │
+          └──────┬──────┘
+                 ▼
+           Feedback Store
+                 │
+                 ▼
+        Model Evaluation / Improvement
+
+Do not add unnecessary microservices.
+
+Do not add Kafka, Kubernetes, Redis, Celery, or distributed infrastructure unless a concrete requirement appears later.
+
+---
+
+## 5. ML Architecture
+
+The ML system should be the real intelligence of the project.
+
+Do not make the LLM the primary scoring mechanism.
+
+Preferred flow:
+
+CRM data
+    ↓
+Feature engineering
+    ↓
+ML model
+    ↓
+Conversion probability
+    ↓
+Lead score
+    ↓
+SHAP explanation
+    ↓
+Next-best-action rules / decision engine
+    ↓
+Optional LLM natural-language explanation
+
+The LLM, if used, is optional and should primarily improve natural-language presentation rather than inventing the underlying score.
+
+---
+
+## 6. Models
+
+Start with a baseline and compare multiple models.
+
+Candidate models:
+- Logistic Regression
+- Random Forest
+- Gradient Boosting
+
+Do not automatically assume one is best.
+
+Evaluate based on:
+- ROC-AUC
+- Precision
+- Recall
+- F1
+- Confusion Matrix
+- Probability calibration
+- Ranking metrics where appropriate
+
+For this tabular CRM problem, avoid unnecessary deep learning.
+
+A simple interpretable model may outperform a more complex model in terms of defensibility.
+
+---
+
+## 7. Lead Scoring
+
+The ML model should estimate conversion probability.
+
+Example:
+
+conversion_probability = 0.87
+
+Then:
+
+lead_score = 87 / 100
+
+Do not confuse:
+- model probability
+- lead score
+- recommendation confidence
+
+They are related but not automatically identical.
+
+---
+
+## 8. Example CRM Data
+
+Synthetic CRM data is allowed and preferred if no suitable public dataset is available.
+
+Target initial dataset:
+2,000–5,000 realistic lead records.
+
+Potential fields:
+
+lead_id
+company_size
+industry
+annual_revenue
+estimated_budget
+lead_source
+
+emails_sent
+emails_opened
+emails_clicked
+email_replies
+
+calls_attempted
+calls_answered
+total_call_minutes
+
+website_visits
+pricing_page_visits
+demo_requested
+
+days_since_last_contact
+
+opportunity_stage
+deal_value
+
+previous_purchase
+
+converted
+
+Do NOT use protected/sensitive attributes such as:
+- race
+- religion
+- ethnicity
+- caste
+- gender
+- other protected attributes
+
+The model must not use sensitive/protected attributes for decision-making.
+
+---
+
+## 9. Realistic Synthetic Data
+
+Do not generate meaningless random rows.
+
+Create realistic behavioral histories.
+
+Example:
+
+Lead #1042
+Company: Acme
+Source: Website
+
+Day 1:
+Downloaded product guide
+
+Day 4:
+Opened email
+
+Day 7:
+Visited pricing page
+
+Day 8:
+Clicked pricing email
+
+Day 10:
+Requested demo
+
+Day 11:
+Sales call attempted
+
+Outcome:
+Converted
+
+The synthetic dataset should contain patterns that allow meaningful learning.
+
+---
+
+## 10. Feature Engineering
+
+Raw CRM fields should be transformed into useful features.
+
+Examples:
+
+emails_opened / emails_sent
+    ↓
+email_open_rate
+
+emails_clicked / emails_opened
+    ↓
+click_rate
+
+calls_answered / calls_attempted
+    ↓
+call_response_rate
+
+days_since_last_contact
+    ↓
+recency signal
+
+pricing_page_visits
+    ↓
+purchase-intent signal
+
+Feature categories should include:
+
+1. Engagement features
+2. Intent features
+3. Recency features
+4. Opportunity features
+5. Account/profile features
+6. Interaction-history features
+
+Avoid leakage.
+
+Do not use information that would only become known after the prediction point.
+
+---
+
+## 11. Baseline
+
+Before advanced ML, create a simple baseline.
+
+Example:
+
+CRM Data
+    ↓
+Simple rule-based scoring
+    ↓
+Baseline performance
+
+Then:
+
+CRM Data
+    ↓
+ML model
+    ↓
+ML performance
+
+Compare them.
+
+The project should be able to demonstrate whether the ML approach actually improves upon a reasonable baseline.
+
+---
+
+## 12. Explainable AI
+
+Use SHAP for feature-level explanations.
+
+Example:
+
+Lead Score: 87
+
+Positive factors:
+- Demo requested: +18
+- Pricing visits: +12
+- Email engagement: +10
+- Deal value: +6
+
+Negative factors:
+- No recent reply: -5
+- Low recency: -4
+
+The dashboard should communicate:
+
+"High conversion potential because the lead requested a demo, repeatedly visited the pricing page, and engaged with recent emails. Lack of recent phone engagement reduced the score."
+
+Important:
+The numerical/model explanation should come from the model explainability layer, not be invented by an LLM.
+
+---
+
+## 13. Next-Best-Action Engine
+
+The recommendation engine answers:
+
+"What should the salesperson do next?"
+
+Possible actions:
+- CALL
+- EMAIL
+- DEMO
+- NURTURE
+- REVIEW
+
+Start with transparent deterministic rules.
+
+Example:
+
+Score >= 80:
+- Demo requested → DEMO
+- Otherwise → CALL
+
+Score 60–79:
+- High email engagement → EMAIL
+- Strong recent interaction → CALL
+
+Score 40–59:
+- NURTURE
+
+Score < 40:
+- Long-term NURTURE
+
+These are starting rules only. They should eventually consider:
+- lead score
+- intent
+- engagement
+- recency
+- opportunity stage
+- previous communication
+- customer preferences
+- action history
+
+Do not make recommendations opaque.
+
+---
+
+## 14. Recommendation Confidence
+
+The UI may show recommendation confidence, but do not automatically equate:
+- model probability
+with
+- recommendation confidence
+
+Define confidence properly.
+
+Example:
+
+Recommendation:
+CALL
+
+Confidence:
+91%
+
+Reasons:
+- high recent engagement
+- recent email response
+- no demo request
+- high opportunity value
+
+---
+
+## 15. Human-in-the-Loop
+
+Human override is required.
+
+Flow:
+
+AI recommendation
+    ↓
+Salesperson
+    ↓
+Accept OR Override
+    ↓
+If override:
+    choose different action
+    add reason
+    ↓
+save feedback
+
+Example:
+
+AI:
+CALL
+
+Sales rep:
+EMAIL
+
+Reason:
+"Customer requested email communication."
+
+Store:
+lead_id
+original_action
+override_action
+reason
+timestamp
+
+Do not automatically retrain the model during the initial build.
+
+Store feedback for later evaluation and potential future retraining.
+
+---
+
+## 16. Evaluation
+
+Model evaluation must be real.
+
+Classification metrics:
+- ROC-AUC
+- Precision
+- Recall
+- F1
+- Confusion Matrix
+
+Also evaluate ranking/business usefulness:
+
+- Precision@K
+- Recall@K
+- Top-K conversion rate
+- Lift
+- Conversion rate by score bucket
+- Calibration
+
+Example:
+
+Top 10% highest-scored leads
+    ↓
+Conversion rate: 31%
+
+All leads
+    ↓
+Conversion rate: 8%
+
+This demonstrates whether ranking is useful to sales teams.
+
+---
+
+## 17. Data Split
+
+Use proper train/validation/test methodology.
+
+Prevent:
+- data leakage
+- target leakage
+- duplicate leakage
+
+If interaction history is time-dependent, consider time-aware splitting rather than blindly random splitting.
+
+---
+
+## 18. Backend Stack
+
+Python:
+3.12
+
+Core packages:
+
+pandas
+numpy
+scikit-learn
+shap
+joblib
+
+FastAPI:
+fastapi
+uvicorn
+
+Validation:
+pydantic
+
+Database:
+sqlmodel
+psycopg[binary]
+
+Environment:
+python-dotenv
+
+Testing:
+pytest
+httpx
+
+---
+
+## 19. Backend Architecture
+
+backend/
+│
+├── app/
+│   ├── api/
+│   │   ├── leads.py
+│   │   ├── recommendations.py
+│   │   ├── analytics.py
+│   │   └── feedback.py
+│   │
+│   ├── models/
+│   │   ├── lead.py
+│   │   ├── interaction.py
+│   │   ├── prediction.py
+│   │   ├── recommendation.py
+│   │   └── feedback.py
+│   │
+│   ├── schemas/
+│   │
+│   ├── services/
+│   │   ├── lead_service.py
+│   │   ├── scoring_service.py
+│   │   ├── recommendation_service.py
+│   │   ├── analytics_service.py
+│   │   └── feedback_service.py
+│   │
+│   ├── ml/
+│   │   ├── preprocessing.py
+│   │   ├── feature_engineering.py
+│   │   ├── train.py
+│   │   ├── evaluate.py
+│   │   ├── scoring.py
+│   │   ├── explain.py
+│   │   └── model.joblib
+│   │
+│   ├── core/
+│   │   ├── config.py
+│   │   └── database.py
+│   │
+│   └── main.py
+│
+├── data/
+├── tests/
+├── requirements.txt
+└── .env.example
+
+Keep API routes thin.
+Business logic belongs in services.
+ML logic belongs in ml/.
+Database models belong in models/.
+
+---
+
+## 20. API Endpoints
+
+Initial API:
+
+GET /health
+
+GET /api/leads
+
+GET /api/leads/{lead_id}
+
+GET /api/leads/ranked
+
+GET /api/leads/{lead_id}/explanation
+
+GET /api/leads/{lead_id}/recommendation
+
+GET /api/analytics
+
+POST /api/recommendations/{lead_id}/override
+
+POST /api/feedback
+
+Potential future endpoints:
+- POST /api/scoring/batch
+- POST /api/data/upload
+- GET /api/models/metrics
+- GET /api/pipeline/summary
+
+---
+
+## 21. Example API Response
+
+{
+  "lead_id": "L1008",
+  "score": 87,
+  "conversion_probability": 0.87,
+  "recommended_action": "schedule_demo",
+  "recommendation_confidence": 0.91,
+  "top_factors": [
+    {
+      "feature": "demo_requested",
+      "impact": 0.22
+    },
+    {
+      "feature": "pricing_page_visits",
+      "impact": 0.13
+    }
+  ]
+}
+
+---
+
+## 22. Database
+
+Preferred:
+PostgreSQL
+
+Main tables:
+
+leads
+interactions
+predictions
+recommendations
+overrides
+feedback
+
+Potential relationships:
+
+Lead
+    │
+    ├── Interactions
+    ├── Predictions
+    ├── Recommendations
+    ├── Overrides
+    └── Feedback
+
+SQLite is acceptable temporarily if PostgreSQL setup becomes a blocker.
+
+Do not spend excessive hackathon time fighting infrastructure.
+
+---
+
+## 23. Frontend Stack
+
+Next.js
+TypeScript
+Tailwind CSS
+shadcn/ui
+Recharts
+Lucide React
+TanStack Query
+
+Use Next.js App Router.
+
+Frontend responsibilities:
+- display data
+- request data from FastAPI
+- visualize analytics
+- show scores
+- show explanations
+- show recommendations
+- allow overrides
+- capture feedback
+
+Do not put ML logic in frontend.
+
+---
+
+## 24. Frontend Structure
+
+frontend/
+│
+├── app/
+│   ├── dashboard/
+│   ├── leads/
+│   │   └── [id]/
+│   ├── analytics/
+│   └── layout.tsx
+│
+├── components/
+│   ├── dashboard/
+│   ├── leads/
+│   ├── charts/
+│   ├── recommendations/
+│   └── ui/
+│
+├── lib/
+│   ├── api.ts
+│   └── types.ts
+│
+└── hooks/
+
+---
+
+## 25. Dashboard Pages
+
+Do not build excessive pages.
+
+Core pages:
+
+1. Dashboard
+2. Ranked Leads
+3. Lead Detail
+4. Analytics
+
+Dashboard should show:
+- total leads
+- high-priority leads
+- pipeline value
+- average lead score
+- score distribution
+- conversion funnel
+- recommended actions
+
+Ranked Leads:
+- rank
+- company
+- score
+- opportunity stage
+- recommended action
+- trend
+
+Lead Detail:
+- lead score
+- conversion probability
+- recommendation
+- recommendation confidence
+- SHAP explanation
+- interaction timeline
+- accept button
+- override button
+
+Analytics:
+- score distribution
+- conversion rate
+- pipeline value
+- lead sources
+- score by stage
+- action distribution
+- high-risk / high-value pipeline
+
+---
+
+## 26. Development / AI Tool Workflow
+
+Use tools by role, not randomly.
+
+Research:
+Perplexity
+
+Architecture / reasoning / debugging:
+ChatGPT
+
+Frontend design:
+Stitch
+
+Implementation:
+Codex OR Antigravity
+
+API testing:
+Bruno
+
+Database inspection:
+Beekeeper Studio
+
+Version control:
+Git + GitHub
+
+Do not allow Codex and Antigravity to simultaneously modify the same files.
+
+---
+
+## 27. Recommended Build Workflow
+
+Phase 1:
+Project setup and environment
+
+Phase 2:
+Synthetic CRM dataset
+
+Phase 3:
+Data validation and cleaning
+
+Phase 4:
+Feature engineering
+
+Phase 5:
+Baseline scoring
+
+Phase 6:
+Train candidate ML models
+
+Phase 7:
+Evaluate and compare models
+
+Phase 8:
+SHAP explainability
+
+Phase 9:
+Next-best-action engine
+
+Phase 10:
+PostgreSQL schema
+
+Phase 11:
+FastAPI APIs
+
+Phase 12:
+Next.js frontend
+
+Phase 13:
+Human override / feedback
+
+Phase 14:
+Integration testing
+
+Phase 15:
+Deployment
+
+Phase 16:
+Documentation / demo / portfolio
+
+Do not skip evaluation and data-quality stages just to reach the UI faster.
+
+---
+
+## 28. Testing
+
+Test:
+- feature engineering
+- model prediction
+- scoring
+- SHAP output
+- recommendation rules
+- API endpoints
+- database operations
+- override behavior
+- feedback capture
+- end-to-end flow
+
+Create test scenarios:
+- hot lead
+- cold lead
+- new lead
+- inactive lead
+- high-value lead
+- demo-requested lead
+- high engagement / low conversion history
+- low engagement / high opportunity value
+
+---
+
+## 29. Deployment
+
+Potential deployment:
+
+Frontend:
+Vercel
+
+Backend:
+Render / Railway / another suitable Python host
+
+Database:
+PostgreSQL managed service
+
+Do not optimize deployment infrastructure before the local system works.
+
+---
+
+## 30. Portfolio / Resume Goal
+
+The final project should demonstrate:
+
+ML:
+- real feature engineering
+- model comparison
+- proper evaluation
+- explainability
+- ranking
+- calibration where appropriate
+
+Backend:
+- FastAPI
+- clean service architecture
+- API design
+- database integration
+- validation
+- testing
+
+Frontend:
+- Next.js
+- TypeScript
+- dashboard UX
+- analytics visualization
+- API integration
+
+Product:
+- next-best-action
+- human-in-the-loop
+- feedback capture
+- measurable business-oriented evaluation
+
+This should not be presented as merely:
+"CRM dashboard built with Python."
+
+It should be presented as:
+"Explainable AI system for CRM lead prioritization and next-best-action recommendations."
+
+---
+
+## 31. Hardware Constraint
+
+Development machine:
+Dell Inspiron 3593
+RAM: 12 GB
+Python: 3.12
+
+This is sufficient for:
+- Pandas
+- NumPy
+- Scikit-learn
+- SHAP
+- FastAPI
+- PostgreSQL
+- Next.js
+- 2K–50K+ tabular CRM records depending on feature/model complexity
+
+No GPU is required for the planned ML models.
+
+Avoid:
+- large local LLM training
+- huge neural networks
+- unnecessary distributed infrastructure
+- millions of synthetic records unless specifically required
+
+---
+
+## 32. Engineering Principles
+
+1. Build the ML system first, not the dashboard first.
+2. Establish a baseline before claiming ML improvement.
+3. Prevent data leakage.
+4. Keep explanations tied to actual model behavior.
+5. Keep recommendations transparent.
+6. Separate model probability from recommendation confidence.
+7. Keep human override available.
+8. Store feedback instead of pretending automatic learning exists.
+9. Keep FastAPI as the API layer.
+10. Keep ML logic separate from API routes.
+11. Keep frontend separate from backend intelligence.
+12. Prefer measurable evidence over AI-generated claims.
+13. Avoid unnecessary infrastructure.
+14. Test everything important.
+15. Document design decisions and trade-offs.
+
+---
+
+## 33. Final System Concept
+
+The finished system should behave like this:
+
+User / CRM Data
+    ↓
+Data Quality
+    ↓
+Feature Engineering
+    ↓
+ML Prediction
+    ↓
+Lead Score
+    ↓
+Explainability
+    ↓
+Next-Best-Action
+    ↓
+Recommendation
+    ↓
+Salesperson
+    ↓
+Accept / Override
+    ↓
+Feedback
+    ↓
+Evaluation
+    ↓
+Future Improvement
+
+The project is not simply:
+"Score customers."
+
+It is:
+"Use CRM evidence to prioritize leads, explain the prediction, recommend an appropriate next action, allow a human to override the recommendation, and measure whether the system is actually useful."

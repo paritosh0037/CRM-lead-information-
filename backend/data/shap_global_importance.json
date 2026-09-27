@@ -1,0 +1,77 @@
+[
+  {
+    "feature": "demo_requested",
+    "display_name": "Demo Requested",
+    "mean_abs_shap": 0.9577
+  },
+  {
+    "feature": "total_web_duration",
+    "display_name": "Website Duration (Seconds)",
+    "mean_abs_shap": 0.2103
+  },
+  {
+    "feature": "pricing_page_visit",
+    "display_name": "Pricing Page Visits",
+    "mean_abs_shap": 0.1384
+  },
+  {
+    "feature": "opportunity_stage_New",
+    "display_name": "Opportunity Stage: New",
+    "mean_abs_shap": 0.1321
+  },
+  {
+    "feature": "opportunity_stage_Qualified",
+    "display_name": "Opportunity Stage: Qualified",
+    "mean_abs_shap": 0.1266
+  },
+  {
+    "feature": "deal_value",
+    "display_name": "Deal Value ($)",
+    "mean_abs_shap": 0.1175
+  },
+  {
+    "feature": "opportunity_stage_Proposal",
+    "display_name": "Opportunity Stage: Proposal",
+    "mean_abs_shap": 0.1135
+  },
+  {
+    "feature": "budget",
+    "display_name": "Budget ($)",
+    "mean_abs_shap": 0.1057
+  },
+  {
+    "feature": "opportunity_stage_Contacted",
+    "display_name": "Opportunity Stage: Contacted",
+    "mean_abs_shap": 0.0959
+  },
+  {
+    "feature": "days_since_last_contact",
+    "display_name": "Days Since Last Contact",
+    "mean_abs_shap": 0.0885
+  },
+  {
+    "feature": "annual_revenue",
+    "display_name": "Annual Revenue ($)",
+    "mean_abs_shap": 0.0653
+  },
+  {
+    "feature": "industry_Manufacturing",
+    "display_name": "Industry: Manufacturing",
+    "mean_abs_shap": 0.0648
+  },
+  {
+    "feature": "total_interactions",
+    "display_name": "Total Interactions",
+    "mean_abs_shap": 0.0534
+  },
+  {
+    "feature": "lead_source_Event",
+    "display_name": "Lead Source: Event",
+    "mean_abs_shap": 0.0499
+  },
+  {
+    "feature": "web_visit",
+    "display_name": "Website Visits",
+    "mean_abs_shap": 0.0363
+  }
+]

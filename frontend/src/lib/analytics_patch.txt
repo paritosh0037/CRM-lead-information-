@@ -1,0 +1,15 @@
+export interface AnalyticsResponse {
+  total_leads: number;
+  high_priority_leads: number;
+  pipeline_value: number;
+  average_lead_score: number;
+  score_distribution: Record<string, number>;
+  score_by_opportunity_stage: Record<string, number>;
+  action_distribution: Record<string, number>;
+}
+
+export async function fetchAnalytics(): Promise<AnalyticsResponse> {
+  const res = await fetch(`${API_BASE_URL}/analytics`);
+  if (!res.ok) throw new Error("Failed to fetch analytics");
+  return res.json();
+}

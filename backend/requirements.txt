@@ -1,0 +1,13 @@
+pandas
+numpy
+scikit-learn
+shap
+joblib
+fastapi
+uvicorn[standard]
+pydantic
+sqlmodel
+psycopg[binary]
+python-dotenv
+pytest
+httpx

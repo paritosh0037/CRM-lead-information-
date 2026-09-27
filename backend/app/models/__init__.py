@@ -1,0 +1,1 @@
+"""Database SQLModel entities."""
