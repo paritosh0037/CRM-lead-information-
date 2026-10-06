@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchLeadIntelligence, fetchLeadFeedback } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { X, CheckCircle2, AlertCircle } from "lucide-react";
+import { X } from "lucide-react";
 import FeedbackControls from "./FeedbackControls";
 
 interface Props {
@@ -116,7 +116,7 @@ export default function LeadDetailPanel({ leadId, onClose }: Props) {
                   {fb.override_action ? (
                     <div>
                       <span className="font-medium">Overrode</span> {fb.original_action} with {fb.override_action}
-                      <p className="mt-1 text-ink-900/70 italic">"{fb.reason}"</p>
+                      <p className="mt-1 text-ink-900/70 italic">&quot;{fb.reason}&quot;</p>
                     </div>
                   ) : (
                     <div>

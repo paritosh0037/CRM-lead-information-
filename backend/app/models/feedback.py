@@ -16,3 +16,4 @@ class Feedback(SQLModel, table=True):
     override_action: Optional[str] = Field(default=None, description="The human override action, if any")
     reason: Optional[str] = Field(default=None, description="Free-text reason for the override")
     timestamp: datetime = Field(default_factory=utc_now)
+    actor_context: Optional[str] = Field(default=None, description="Identity of the actor (limitation: currently unauthenticated system)")

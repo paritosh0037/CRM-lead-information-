@@ -9,7 +9,7 @@ load_dotenv()
 # Read DATABASE_URL from environment variable without hardcoding credentials
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+psycopg://postgres:postgres@localhost:5432/crm_db"
+    "sqlite:///database.db"
 )
 
 # Create SQLModel / SQLAlchemy engine

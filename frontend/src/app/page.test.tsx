@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi } from "vitest";
-import DashboardPage from "./page";
+import DashboardPage from "./dashboard/page";
 import * as api from "@/lib/api";
 
 // Mock the API module
@@ -58,7 +58,8 @@ describe("DashboardPage", () => {
 
     renderWithProviders(<DashboardPage />);
     
-    expect(screen.getByText("AI Sales Intelligence")).toBeTruthy();
+    // Check if overview section title exists
+    expect(screen.getByText("Overview")).toBeTruthy();
     
     // Check if analytics loaded
     await waitFor(() => {

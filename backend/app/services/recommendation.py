@@ -66,17 +66,66 @@ class RecommendationEngine:
             record = dict(lead_data)
 
         extracted_id = record.get("lead_id", lead_id)
+        
+        # Safe extraction for edge cases
         raw_score = record.get("lead_score", lead_score)
         raw_prob = record.get("conversion_probability", conversion_probability)
 
         score = _safe_int(raw_score, default=None)
         prob = _safe_float(raw_prob, default=None)
-
+        
+        # Missing or completely invalid score requires REVIEW
         if score is None:
             if prob is not None:
                 score = int(round(prob * 100))
             else:
-                score = 50  # Default fallback if unscored
+                return {
+                    "lead_id": extracted_id,
+                    "lead_score": None,
+                    "conversion_probability": prob,
+                    "recommended_action": ACTION_REVIEW,
+                    "recommendation_confidence": 0.50,
+                    "confidence_reasons": ["Missing lead score and conversion probability"],
+                    "rationale": "Insufficient information to determine the next best action. Manual review required.",
+                    "rule_trace": {
+                        "score_band": "Unknown",
+                        "trigger": "missing_score",
+                        "action": ACTION_REVIEW,
+                    },
+                }
+
+        # Invalid score ranges
+        if score < 0 or score > 100:
+            return {
+                "lead_id": extracted_id,
+                "lead_score": score,
+                "conversion_probability": prob,
+                "recommended_action": ACTION_REVIEW,
+                "recommendation_confidence": 0.50,
+                "confidence_reasons": [f"Invalid score range detected ({score})"],
+                "rationale": "Score is outside the valid 0-100 range. Manual review required.",
+                "rule_trace": {
+                    "score_band": "Invalid",
+                    "trigger": "invalid_score",
+                    "action": ACTION_REVIEW,
+                },
+            }
+
+        if prob is not None and (prob < 0.0 or prob > 1.0):
+            return {
+                "lead_id": extracted_id,
+                "lead_score": score,
+                "conversion_probability": prob,
+                "recommended_action": ACTION_REVIEW,
+                "recommendation_confidence": 0.50,
+                "confidence_reasons": [f"Invalid conversion probability detected ({prob})"],
+                "rationale": "Probability is outside the valid 0.0-1.0 range. Manual review required.",
+                "rule_trace": {
+                    "score_band": "Invalid",
+                    "trigger": "invalid_probability",
+                    "action": ACTION_REVIEW,
+                },
+            }
 
         # Extract relevant CRM signal inputs safely
         demo_requested = _safe_int(record.get("demo_requested"), default=0)
@@ -87,6 +136,7 @@ class RecommendationEngine:
         web_visits = _safe_int(record.get("web_visit"), default=0)
         days_since_contact = _safe_int(record.get("days_since_last_contact"), default=60)
         total_interactions = _safe_int(record.get("total_interactions"), default=0)
+        deal_value = _safe_float(record.get("deal_value"), default=0.0)
 
         confidence_reasons: List[str] = []
         action = ACTION_NURTURE
@@ -95,8 +145,20 @@ class RecommendationEngine:
         rationale = ""
         base_confidence = 0.70
 
+        # High-value opportunity requiring human attention (Escalation)
+        if deal_value and deal_value >= 100000 and score >= 40:
+            # Overrides normal bands due to high deal value
+            action = ACTION_CALL
+            score_band = "High-Value Escalation"
+            trigger = "high_value_opportunity"
+            base_confidence = 0.90
+            confidence_reasons.append(f"Extremely high deal value (${deal_value:,.2f}) mandates direct contact")
+            rationale = (
+                f"Lead is associated with a high-value deal of ${deal_value:,.2f}. "
+                "Immediate direct sales contact (CALL) is recommended regardless of standard score bands."
+            )
         # Rule evaluation by score band
-        if score >= 80:
+        elif score >= 80:
             score_band = "80-100 (High Priority)"
             base_confidence = 0.85
             confidence_reasons.append("Lead score is in the high-priority band (>= 80)")
@@ -129,11 +191,18 @@ class RecommendationEngine:
             base_confidence = 0.75
             confidence_reasons.append("Lead score is in the warm opportunity band (60-79)")
 
-            # Check email engagement vs strong recent interaction
             has_high_email = (email_clicked >= 1) or (email_opened >= 3)
             has_recent_interaction = (days_since_contact <= 14) or (calls_made >= 1) or (total_interactions >= 5)
 
-            if has_high_email and not (has_recent_interaction and days_since_contact <= 7):
+            if demo_requested > 0:
+                action = ACTION_DEMO
+                trigger = "demo_requested"
+                confidence_reasons.append(f"Direct demo request signal detected ({demo_requested} request(s))")
+                rationale = (
+                    f"Lead has a warm score of {score} and explicitly requested a product demo. "
+                    "Scheduling a product demonstration (DEMO) is recommended."
+                )
+            elif has_high_email and not (has_recent_interaction and days_since_contact <= 7):
                 action = ACTION_EMAIL
                 trigger = "high_email_engagement"
                 confidence_reasons.append(
@@ -171,14 +240,24 @@ class RecommendationEngine:
         elif 40 <= score <= 59:
             score_band = "40-59 (Developing / Mid-Funnel)"
             base_confidence = 0.72
-            action = ACTION_NURTURE
-            trigger = "moderate_score_nurture"
-            confidence_reasons.append("Lead score is in the mid-funnel band (40-59)")
-            confidence_reasons.append("Sales rep time is preserved by routing to automated nurture campaigns")
-            rationale = (
-                f"Lead has a moderate score of {score}. Marketing nurture sequence (NURTURE) is recommended "
-                "to build product awareness and cultivate higher intent."
-            )
+            
+            if demo_requested > 0:
+                action = ACTION_DEMO
+                trigger = "demo_requested"
+                confidence_reasons.append("Lead score is in the mid-funnel band (40-59) but requested a demo")
+                rationale = (
+                    f"Lead has a moderate score of {score} but explicitly requested a product demo. "
+                    "A product demonstration (DEMO) is recommended."
+                )
+            else:
+                action = ACTION_NURTURE
+                trigger = "moderate_score_nurture"
+                confidence_reasons.append("Lead score is in the mid-funnel band (40-59)")
+                confidence_reasons.append("Sales rep time is preserved by routing to automated nurture campaigns")
+                rationale = (
+                    f"Lead has a moderate score of {score}. Marketing nurture sequence (NURTURE) is recommended "
+                    "to build product awareness and cultivate higher intent."
+                )
 
         else:  # score < 40
             score_band = "0-39 (Cold / Early Stage)"

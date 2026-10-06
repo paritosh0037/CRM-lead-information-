@@ -130,3 +130,18 @@ def get_lead_by_id(lead_id: str) -> CombinedLeadIntelligenceResponse:
             detail=f"Lead with ID '{lead_id}' not found.",
         )
     return intel
+
+
+@router.get(
+    "/{lead_id}/interactions",
+    summary="Get Lead Interaction History",
+    description="Fetches the complete interaction history for a given lead.",
+)
+def get_lead_interactions(lead_id: str):
+    try:
+        return lead_service.get_lead_interactions(lead_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch interactions: {str(e)}",
+        )

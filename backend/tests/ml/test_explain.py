@@ -1,150 +1,98 @@
-import json
-from pathlib import Path
-import numpy as np
-import pandas as pd
 import pytest
+import pandas as pd
+import numpy as np
+import tempfile
+import os
+from scipy.special import expit
 
-from app.ml.engine import MLEngine
-from app.ml.explain import (
-    FEATURE_DISPLAY_NAMES,
-    SHAPExplainer,
-    generate_natural_language_explanation,
-    get_display_name,
-)
+from app.ml.train import run_training_pipeline
+from app.ml.model import MLModel
 
-
-@pytest.fixture
-def sample_dataset():
-    data_path = "data/model_ready_features.csv"
-    return pd.read_csv(data_path)
-
-
-@pytest.fixture
-def explainer():
-    return SHAPExplainer(model_path="data/model.joblib")
-
-
-def test_shap_explainer_initialization(explainer):
-    assert explainer.model is not None
-    assert explainer.explainer is not None
-    assert len(explainer.feature_names) > 0
-
-
-def test_explain_single_lead_structure(explainer, sample_dataset):
-    single_lead = sample_dataset.iloc[0].to_dict()
-    explanation = explainer.explain_lead(
-        single_lead,
-        lead_id="L00001",
-        lead_score=85,
-        conversion_probability=0.85,
-        top_n=5,
+@pytest.fixture(scope="module")
+def trained_model_env():
+    """Generates a dataset, trains a model, and returns a temp dir with artifacts."""
+    df = pd.DataFrame({
+        "lead_id": [f"L{i}" for i in range(100)],
+        "converted": np.random.choice([0, 1], size=100),
+        "demo_requested": np.random.choice([0, 1], size=100),
+        "deal_value": np.random.uniform(1000, 100000, size=100),
+        "email_clicked": np.random.randint(0, 10, size=100),
+        "industry_Technology": np.random.choice([0, 1], size=100)
+    })
+    
+    temp_dir = tempfile.mkdtemp()
+    model, summary, preds = run_training_pipeline(
+        output_dir=temp_dir,
+        test_size=0.2,
+        random_state=42,
+        df=df
     )
+    
+    X_test = df.drop(columns=["lead_id", "converted"]).head(5)
+    return temp_dir, X_test
 
-    assert explanation["lead_id"] == "L00001"
-    assert explanation["lead_score"] == 85
-    assert explanation["conversion_probability"] == 0.85
+def test_shap_availability(trained_model_env):
+    temp_dir, X_test = trained_model_env
+    ml_model = MLModel(artifact_path=os.path.join(temp_dir, "model.joblib"))
+    assert ml_model._explainer is not None, "SHAP explainer should be initialized"
+
+def test_explanation_structure_and_sanity(trained_model_env):
+    temp_dir, X_test = trained_model_env
+    ml_model = MLModel(artifact_path=os.path.join(temp_dir, "model.joblib"))
+    
+    # Test on a single lead (e.g., hot lead archetype)
+    single_lead = X_test.iloc[[0]]
+    explanation = ml_model.explain(single_lead)
+    
+    # Check structure
+    assert "prediction_probability" in explanation
+    assert "margin_prediction" in explanation
     assert "base_value" in explanation
-    assert "positive_factors" in explanation
-    assert "negative_factors" in explanation
-    assert "top_factors" in explanation
-    assert "explanation_text" in explanation
-    assert len(explanation["top_factors"]) <= 5
+    assert "top_positive_factors" in explanation
+    assert "top_negative_factors" in explanation
+    assert "human_readable" in explanation
+    
+    # Check contribution sanity: base_value + sum(shap) ≈ margin
+    sum_shap = sum(f["shap_value"] for f in explanation["top_positive_factors"] + explanation["top_negative_factors"])
+    margin = explanation["base_value"] + sum_shap
+    assert abs(margin - explanation["margin_prediction"]) < 1e-4
+    
+    # Check prediction consistency: expit(margin) ≈ proba for GBC
+    calc_proba = expit(margin)
+    assert abs(calc_proba - explanation["prediction_probability"]) < 1e-3
+    
+    # Check sorting (absolute descending)
+    pos = explanation["top_positive_factors"]
+    if len(pos) > 1:
+        assert abs(pos[0]["shap_value"]) >= abs(pos[1]["shap_value"])
+        
+    neg = explanation["top_negative_factors"]
+    if len(neg) > 1:
+        assert abs(neg[0]["shap_value"]) >= abs(neg[1]["shap_value"])
 
+def test_explanation_determinism(trained_model_env):
+    temp_dir, X_test = trained_model_env
+    ml_model = MLModel(artifact_path=os.path.join(temp_dir, "model.joblib"))
+    
+    single_lead = X_test.iloc[[0]]
+    exp1 = ml_model.explain(single_lead)
+    exp2 = ml_model.explain(single_lead)
+    
+    assert exp1["prediction_probability"] == exp2["prediction_probability"]
+    assert exp1["margin_prediction"] == exp2["margin_prediction"]
+    assert exp1["human_readable"] == exp2["human_readable"]
 
-def test_positive_and_negative_factors_sorting(explainer, sample_dataset):
-    single_lead = sample_dataset.iloc[0].to_dict()
-    explanation = explainer.explain_lead(single_lead, top_n=10)
+def test_explain_multiple_rows_fails(trained_model_env):
+    temp_dir, X_test = trained_model_env
+    ml_model = MLModel(artifact_path=os.path.join(temp_dir, "model.joblib"))
+    
+    with pytest.raises(ValueError, match="exactly one lead"):
+        ml_model.explain(X_test)  # passing multiple rows
 
-    pos = explanation["positive_factors"]
-    neg = explanation["negative_factors"]
-
-    # Check all positive factors have impact > 0 and are sorted descending
-    for i in range(len(pos)):
-        assert pos[i]["impact"] > 0
-        if i > 0:
-            assert pos[i - 1]["impact"] >= pos[i]["impact"]
-
-    # Check all negative factors have impact < 0 and are sorted ascending (strongest negative first)
-    for i in range(len(neg)):
-        assert neg[i]["impact"] < 0
-        if i > 0:
-            assert neg[i - 1]["impact"] <= neg[i]["impact"]
-
-
-def test_display_name_mapping():
-    assert get_display_name("demo_requested") == "Demo Requested"
-    assert get_display_name("pricing_page_visit") == "Pricing Page Visits"
-    assert get_display_name("opportunity_stage_Qualified") == "Opportunity Stage: Qualified"
-    assert get_display_name("unknown_custom_feature") == "Unknown Custom Feature"
-
-
-def test_natural_language_explanation_generation():
-    pos_factors = [
-        {"display_name": "Demo Requested", "impact": 0.22},
-        {"display_name": "Pricing Page Visits", "impact": 0.15},
-    ]
-    neg_factors = [
-        {"display_name": "Days Since Last Contact", "impact": -0.10},
-    ]
-
-    text = generate_natural_language_explanation(
-        pos_factors, neg_factors, lead_score=85
-    )
-    assert "High conversion potential" in text
-    assert "demo requested" in text.lower()
-    assert "pricing page visits" in text.lower()
-    assert "days since last contact" in text.lower()
-
-
-def test_global_feature_importance(explainer, sample_dataset, tmp_path):
-    X = sample_dataset.drop(columns=["lead_id", "converted"])
-    out_file = tmp_path / "global_importance.json"
-
-    importance = explainer.save_global_importance(X, output_path=str(out_file), top_n=10)
-
-    assert out_file.exists()
-    assert len(importance) == 10
-    assert "feature" in importance[0]
-    assert "display_name" in importance[0]
-    assert "mean_abs_shap" in importance[0]
-
-    # Verify descending sort
-    for i in range(1, len(importance)):
-        assert importance[i - 1]["mean_abs_shap"] >= importance[i]["mean_abs_shap"]
-
-
-def test_explanation_reproducibility(explainer, sample_dataset):
-    lead = sample_dataset.iloc[2].to_dict()
-    exp1 = explainer.explain_lead(lead, lead_id="L00003", lead_score=70)
-    exp2 = explainer.explain_lead(lead, lead_id="L00003", lead_score=70)
-
-    assert exp1["positive_factors"] == exp2["positive_factors"]
-    assert exp1["negative_factors"] == exp2["negative_factors"]
-    assert exp1["explanation_text"] == exp2["explanation_text"]
-    assert exp1["base_value"] == exp2["base_value"]
-
-
-def test_ml_engine_explain_lead_integration(sample_dataset):
-    engine = MLEngine(model_path="data/model.joblib")
-    lead = sample_dataset.iloc[1].to_dict()
-
-    res = engine.explain_lead(lead, lead_id="L00002")
-
-    assert "lead_score" in res
-    assert "conversion_probability" in res
-    assert "positive_factors" in res
-    assert "negative_factors" in res
-    assert "explanation_text" in res
-    assert isinstance(res["lead_score"], int)
-
-
-def test_sensitive_attributes_exclusion_in_explanation(explainer, sample_dataset):
-    dirty_lead = sample_dataset.iloc[0].to_dict()
-    dirty_lead["gender"] = "Male"
-    dirty_lead["religion"] = "None"
-
-    res = explainer.explain_lead(dirty_lead)
-
-    all_features = [f["feature"] for f in res["top_factors"]]
-    assert "gender" not in all_features
-    assert "religion" not in all_features
+def test_missing_features_fails(trained_model_env):
+    temp_dir, X_test = trained_model_env
+    ml_model = MLModel(artifact_path=os.path.join(temp_dir, "model.joblib"))
+    
+    bad_lead = X_test.iloc[[0]].drop(columns=["demo_requested"])
+    with pytest.raises(ValueError, match="Missing required features"):
+        ml_model.explain(bad_lead)

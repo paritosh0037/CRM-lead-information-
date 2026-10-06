@@ -106,3 +106,59 @@ Charts here should look like they came from an analyst's notebook: labeled axes,
 - Color is never the only signal — every score band and positive/negative factor also has a text label or icon
 - Responsive down to a usable tablet width at minimum; the sales-rep-on-a-laptop case is primary, mobile is secondary
 - Respect `prefers-reduced-motion` for any interaction-triggered transitions
+
+---
+
+## 7. Deterministic Recommendation Rules (Rule Engine Foundation)
+
+The Next-Best-Action recommendations are powered by a deterministic, transparent rule engine. It intentionally separates recommendation logic from ML predictive probabilities, ensuring every suggested action has a clear, explainable trigger.
+
+### Inputs Required
+The Rule Engine consumes the following data points per lead:
+- `lead_score` (0-100)
+- `conversion_probability` (0.0-1.0)
+- `deal_value` (Float/Currency)
+- Engagement Signals:
+  - `demo_requested` (Count)
+  - `pricing_page_visit` (Count)
+  - `email_opened` (Count)
+  - `email_clicked` (Count)
+  - `call_made` (Count)
+  - `web_visit` (Count)
+  - `days_since_last_contact` (Days)
+  - `total_interactions` (Count)
+
+### Outputs
+The engine yields a recommendation block containing:
+- `recommended_action`: The primary action to take (e.g., `CALL`, `EMAIL`, `DEMO`, `NURTURE`, `REVIEW`).
+- `recommendation_confidence`: A scalar value [0.50, 0.95] reflecting the rule's strength.
+- `rationale`: A human-readable paragraph explicitly stating *why* the action was recommended.
+- `confidence_reasons`: Bullet-point factors contributing to the final confidence score.
+- `rule_trace`: Metadata object containing `score_band` and `trigger` for debugging and logging.
+
+### Priority Logic & Rule Bands
+
+1. **Exceptions / Escalations (Highest Priority)**
+   - **Missing/Invalid Data:** If the `lead_score` is missing or out of valid bounds (0-100), the action is `REVIEW` with a rationale pointing out insufficient information.
+   - **High-Value Deals:** If the score is >= 40 and `deal_value` >= $100,000, it triggers an immediate `CALL` (High-Value Escalation) overriding standard bands, yielding 0.90 base confidence.
+
+2. **80-100: High Priority**
+   - **Explicit Intent:** If `demo_requested > 0`, action is `DEMO`. Pricing visits increase confidence.
+   - **Default:** `CALL`. Recent contact (<= 14 days) increases confidence.
+
+3. **60-79: Warm Opportunity**
+   - **Explicit Intent:** If `demo_requested > 0`, action is `DEMO`.
+   - **High Email Engagement:** If high email opens/clicks exist and no recent (<= 7 days) interactions occurred, action is `EMAIL`.
+   - **Strong Recent Interaction:** If recently contacted or highly engaged across channels, action is `CALL`.
+   - **Default:** `EMAIL` (standard nurture touchpoint).
+
+4. **40-59: Developing / Mid-Funnel**
+   - **Explicit Intent:** If `demo_requested > 0`, action is `DEMO` despite the mid-tier score.
+   - **Default:** `NURTURE` (preserve rep time, route to automated marketing).
+
+5. **0-39: Cold / Early Stage**
+   - **Always:** `NURTURE` (long-term drip campaign until signals improve).
+
+### Confidence Adjustments
+- **Stale Contact Penalty:** If `score >= 60` and `days_since_last_contact > 90`, confidence is reduced by 0.05 to reflect cooling momentum.
+- **Clamping:** Final confidence is always clamped between 0.50 and 0.95 to maintain realistic boundaries for deterministic rules.

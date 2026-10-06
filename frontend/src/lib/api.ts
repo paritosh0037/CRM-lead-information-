@@ -2,7 +2,8 @@ import {
   RankedLeadsResponse, 
   CombinedLeadIntelligenceResponse,
   FeedbackResponse,
-  AnalyticsResponse
+  AnalyticsResponse,
+  InteractionResponse
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
@@ -63,6 +64,12 @@ export async function overrideRecommendation(
 export async function fetchAnalytics(): Promise<AnalyticsResponse> {
   const res = await fetch(`${API_BASE_URL}/analytics`);
   if (!res.ok) throw new Error("Failed to fetch analytics");
+  return res.json();
+}
+
+export async function fetchLeadInteractions(leadId: string): Promise<InteractionResponse[]> {
+  const res = await fetch(`${API_BASE_URL}/leads/${leadId}/interactions`);
+  if (!res.ok) throw new Error("Failed to fetch lead interactions");
   return res.json();
 }
 

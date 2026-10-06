@@ -8,7 +8,7 @@ export interface FactorDetail {
   feature: string;
   display_name: string;
   impact: number;
-  raw_value: any;
+  raw_value: string | number | boolean | null;
 }
 
 export interface LeadExplanationResponse {
@@ -83,4 +83,12 @@ export interface AnalyticsResponse {
   score_distribution: Record<string, number>;
   score_by_opportunity_stage: Record<string, number>;
   action_distribution: Record<string, number>;
+}
+
+export interface InteractionResponse {
+  id: number;
+  lead_id: string;
+  interaction_type: string;
+  timestamp: string;
+  duration?: number;
 }

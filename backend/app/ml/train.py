@@ -1,40 +1,69 @@
 import json
+import datetime
 from pathlib import Path
 from typing import Any, Dict, Tuple
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.model_selection import train_test_split
 
-from app.ml.baseline import split_data
 from app.ml.evaluate import evaluate_classification, evaluate_ranking
+
+
+def split_data(
+    df: pd.DataFrame, test_size: float = 0.2, random_state: int = 42
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, pd.Series, pd.Series]:
+    """
+    Splits dataset into train and test sets.
+    
+    LIMITATION DOCUMENTATION: Time-Aware Splitting
+    ----------------------------------------------
+    The dataset (leads.csv / model_ready_features.csv) does not contain a `created_at`, 
+    `conversion_date`, or sufficient lead-level temporal milestones to implement a 
+    proper out-of-time (OOT) validation split.
+    
+    Per Phase 4 instructions: We stop attempting a temporal split and explicitly 
+    document this limitation. We are falling back to a stratified random split 
+    until the upstream data engineering team provides lead lifecycle timestamps.
+    """
+    if "lead_id" not in df.columns or "converted" not in df.columns:
+        raise ValueError("Dataset must contain 'lead_id' and 'converted' columns.")
+
+    lead_ids = df["lead_id"]
+    y = df["converted"]
+    X = df.drop(columns=["lead_id", "converted"])
+
+    (
+        X_train,
+        X_test,
+        y_train,
+        y_test,
+        ids_train,
+        ids_test,
+    ) = train_test_split(
+        X, y, lead_ids, test_size=test_size, random_state=random_state, stratify=y
+    )
+
+    return X_train, X_test, y_train, y_test, ids_train, ids_test
 
 
 def train_candidate_models(
     X_train: pd.DataFrame, y_train: pd.Series, random_state: int = 42
 ) -> Dict[str, Any]:
     """
-    Trains standard classical ML candidate models on tabular CRM features.
+    Trains the Phase 4 candidate ML model: GradientBoostingClassifier.
     """
-    candidates = {
-        "LogisticRegression": LogisticRegression(
-            max_iter=1000, random_state=random_state
-        ),
-        "RandomForest": RandomForestClassifier(
-            n_estimators=100, max_depth=6, random_state=random_state
-        ),
-        "GradientBoosting": GradientBoostingClassifier(
-            n_estimators=100, max_depth=4, learning_rate=0.1, random_state=random_state
-        ),
-    }
+    # Using the required Phase 4 hyperparameters
+    model = GradientBoostingClassifier(
+        n_estimators=100, 
+        max_depth=4, 
+        learning_rate=0.1, 
+        random_state=random_state
+    )
 
-    trained_models = {}
-    for name, model in candidates.items():
-        model.fit(X_train, y_train)
-        trained_models[name] = model
-
-    return trained_models
+    model.fit(X_train, y_train)
+    return {"GradientBoosting": model}
 
 
 def evaluate_models(
@@ -68,17 +97,14 @@ def run_training_pipeline(
     output_dir: str = "data",
     test_size: float = 0.2,
     random_state: int = 42,
+    df: pd.DataFrame = None,
 ) -> Tuple[Any, Dict[str, Any], pd.DataFrame]:
     """
-    Executes the end-to-end ML training pipeline:
-    - Splits data into train and test sets
-    - Trains candidate ML models
-    - Evaluates candidates and selects champion (GradientBoosting)
-    - Compares ML model performance with baseline
-    - Persists model artifact with joblib
-    - Outputs predictions dataset (predictions.csv) and metrics artifacts
+    Executes the end-to-end Phase 4 ML training pipeline.
     """
-    df = pd.read_csv(data_path)
+    if df is None:
+        df = pd.read_csv(data_path)
+        
     X_train, X_test, y_train, y_test, ids_train, ids_test = split_data(
         df, test_size=test_size, random_state=random_state
     )
@@ -89,7 +115,7 @@ def run_training_pipeline(
     )
     candidates_eval = evaluate_models(trained_models, X_test, y_test)
 
-    # Champion model selection (GradientBoosting yields superior ROC-AUC & Calibration)
+    # Champion model selection
     champion_name = "GradientBoosting"
     champion_model = trained_models[champion_name]
     champion_metrics = candidates_eval[champion_name]
@@ -97,6 +123,7 @@ def run_training_pipeline(
     # Generate predictions on test set
     raw_proba = champion_model.predict_proba(X_test)[:, 1]
     test_proba = np.round(raw_proba, 4)
+    # Lead score maps ML probability to 0-100 directly
     test_scores = np.round(test_proba * 100).astype(int)
 
     predictions_df = pd.DataFrame(
@@ -111,26 +138,45 @@ def run_training_pipeline(
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    # Save model artifact
+    # Structured Model Metadata Artifact
+    model_metadata = {
+        "model_name": champion_name,
+        "model_version": "1.0.0",
+        "algorithm": "GradientBoostingClassifier",
+        "target": "converted",
+        "feature_contract_version": "v2_phase2",
+        "training_data_period": "unknown_no_temporal_features",
+        "evaluation_data_period": "unknown_no_temporal_features",
+        "hyperparameters": {
+            "n_estimators": 100,
+            "max_depth": 4,
+            "learning_rate": 0.1,
+            "random_state": random_state
+        },
+        "metrics": {
+            "roc_auc": champion_metrics["classification_metrics"]["roc_auc"],
+            "brier_score": champion_metrics["classification_metrics"]["brier_score"]
+        },
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "feature_names": list(X_train.columns)
+    }
+
+    # Save model artifact via joblib including metadata
     model_artifact_path = out_path / "model.joblib"
     joblib.dump(
         {
             "model": champion_model,
-            "model_name": champion_name,
-            "feature_names": list(X_train.columns),
-            "random_state": random_state,
+            "metadata": model_metadata
         },
         model_artifact_path,
     )
 
-    # Also save with secondary descriptive name
-    joblib.dump(
-        champion_model,
-        out_path / "lead_scoring_model.joblib",
-    )
+    # Save metadata JSON explicitly for monitoring
+    with open(out_path / "model_metadata.json", "w") as f:
+        json.dump(model_metadata, f, indent=2)
 
     # Save predictions
-    predictions_df.to_csv(out_path / "predictions.csv", index=False)
+    predictions_df.to_csv(out_path / "ml_predictions.csv", index=False)
 
     # Load baseline metrics for direct comparison
     baseline_metrics_file = out_path / "baseline_metrics.json"
@@ -139,7 +185,7 @@ def run_training_pipeline(
         with open(baseline_metrics_file) as f:
             baseline_metrics = json.load(f)
 
-    # Save model metrics
+    # Save ML model metrics
     metrics_summary = {
         "champion_model": champion_name,
         "features_count": len(X_train.columns),
@@ -147,20 +193,10 @@ def run_training_pipeline(
         "test_records": len(X_test),
         "random_state": random_state,
         "classification_metrics": champion_metrics["classification_metrics"],
-        "ranking_metrics": champion_metrics["ranking_metrics"],
-        "candidate_models": {
-            name: {
-                "roc_auc": res["classification_metrics"]["roc_auc"],
-                "precision": res["classification_metrics"]["precision"],
-                "recall": res["classification_metrics"]["recall"],
-                "f1": res["classification_metrics"]["f1"],
-                "brier_score": res["classification_metrics"]["brier_score"],
-            }
-            for name, res in candidates_eval.items()
-        },
+        "ranking_metrics": champion_metrics["ranking_metrics"]
     }
 
-    with open(out_path / "model_metrics.json", "w") as f:
+    with open(out_path / "ml_metrics.json", "w") as f:
         json.dump(metrics_summary, f, indent=2)
 
     # Model vs Baseline comparison
@@ -201,7 +237,7 @@ def run_training_pipeline(
             },
         }
 
-        with open(out_path / "model_comparison.json", "w") as f:
+        with open(out_path / "model_vs_baseline_comparison.json", "w") as f:
             json.dump(comparison, f, indent=2)
 
     return champion_model, metrics_summary, predictions_df
@@ -212,7 +248,7 @@ if __name__ == "__main__":
         "f:/pending project/CRM project/backend/data/model_ready_features.csv",
         "f:/pending project/CRM project/backend/data",
     )
-    print("ML Training Pipeline complete.")
+    print("Phase 4 ML Training Pipeline complete.")
     print(f"Champion: {summary['champion_model']}")
     print(f"ROC-AUC: {summary['classification_metrics']['roc_auc']:.4f}")
     print(f"F1-Score: {summary['classification_metrics']['f1']:.4f}")
