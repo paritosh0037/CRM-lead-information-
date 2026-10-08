@@ -94,3 +94,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+architecture.md
+context.txt
+design.md
+prd.md
+README.md
+rules.md
+tasks.md
