@@ -29,7 +29,7 @@ build/
 next-env.d.ts
 
 # ML artifacts & models
-*.joblib
+
 *.pkl
 *.h5
 *.onnx
