@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "dev:vinext": "vite dev --port 3001",
+    "build:vinext": "vite build",
+    "start:vinext": "vite preview",
+    "deploy:vinext": "vinext-cloudflare deploy",
+    "deploy:response-store": "cf deploy --prebuilt --mode production --worker frontend-response-store"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -37,5 +42,6 @@
     "typescript": "^5",
     "vite": "^8.3.1",
     "vitest": "^5.0.2"
-  }
+  },
+  "type": "module"
 }
