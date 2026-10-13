@@ -15,7 +15,7 @@ export const responseStoreServiceBinding = responseStore.serviceBindingWorker;
 export default defineConfig({
   worker: defineWorker({
     ...responseStore.applicationWorker,
-    name: "frontend",
+    name: "crm-lead-information",
     entrypoint: "vinext/server/fetch-handler",
     compatibilityDate: "2026-10-09",
     compatibilityFlags: ["nodejs_compat"],
